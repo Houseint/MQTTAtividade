@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { env } from 'expo-env';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, Alert } from 'react-native';
 import MQTTService from './src/services/mqttService';
 import StatusModal from './src/components/StatusModal';
 import LightControl from './src/components/LightControl';
@@ -16,11 +15,10 @@ export default function App() {
   const [hum, setHum] = useState(0);
 
   const mqttConfig = {
-    host: env.MQTT_HOST,
-    port: parseInt(env.MQTT_PORT),
-    path: env.MQTT_PATH,
-    user: env.MQTT_USER,
-    pass: env.MQTT_PASS,
+    host: 'bf3e69df925042a1805aa09d59658af2.s1.eu.hivemq.cloud',
+    port: 8884,
+    user: 'aluno_etec',
+    pass: '1234ABCd',
     clientId: 'RN_App_' + Math.random(),
   };
 
@@ -30,6 +28,7 @@ export default function App() {
 
   const startConnection = () => {
     setShowError(false);
+    console.log('[App] Tentando conectar ao MQTT...');
     mqtt.connect(
       mqttConfig,
       (topic, message) => {
@@ -38,12 +37,14 @@ export default function App() {
         if (topic === 'casa/luz') setIsLightOn(message === "1");
       },
       () => {
+        console.log('[App] Conectado com sucesso!');
         setIsConnected(true);
         mqtt.subscribe('casa/temp');
         mqtt.subscribe('casa/umid');
         mqtt.subscribe('casa/luz');
       },
       (err) => {
+        console.log('[App] Erro na conexão:', err);
         setIsConnected(false);
         setShowError(true);
       }

@@ -1,49 +1,92 @@
-import init from 'react_native_mqtt';
-import { AsyncStorage } from '@react-native-async-storage/async-storage';
-
-// Inicializa a biblioteca com suporte a armazenamento local
-init({
-  size: 10000,
-  storageBackend: AsyncStorage,
-  defaultExpires: 1000 * 3600 * 24,
-  enableCache: true,
-  sync: {},
-});
+import mqtt from 'mqtt';
 
 export default class MQTTService {
   constructor() {
     this.client = null;
+    this.messageHandlers = {};
   }
 
   connect(config, onMessage, onConnect, onFailure) {
-    const { host, port, path, user, pass, clientId } = config;
+    const { host, port, user, pass, clientId } = config;
 
-    this.client = new Paho.MQTT.Client(host, port, path, clientId);
+    try {
+      // Construir URL com protocolo WebSocket seguro
+      const protocol = 'wss'; // WebSocket Secure para porta 8884
+      const brokerUrl = `${protocol}://${host}:${port}/mqtt`;
+      
+      console.log('[MQTT] Conectando a:', brokerUrl);
 
-    this.client.onMessageArrived = (message) => {
-      onMessage(message.destinationName, message.payloadString);
-    };
+      this.client = mqtt.connect(brokerUrl, {
+        clientId: clientId,
+        username: user,
+        password: pass,
+        reconnectPeriod: 1000,
+        connectTimeout: 30000,
+        clean: true,
+      });
 
-    const options = {
-      userName: user,
-      password: pass,
-      useSSL: true,
-      onSuccess: onConnect,
-      onFailure: onFailure,
-      timeout: 3,
-      keepAliveInterval: 60,
-    };
+      this.client.on('connect', () => {
+        console.log('[MQTT] Conectado com sucesso!');
+        if (onConnect) onConnect();
+      });
 
-    this.client.connect(options);
+      this.client.on('message', (topic, payload) => {
+        const message = payload.toString();
+        console.log('[MQTT] Mensagem recebida:', topic, message);
+        if (onMessage) onMessage(topic, message);
+      });
+
+      this.client.on('error', (error) => {
+        console.log('[MQTT] Erro:', error.message || error);
+        if (onFailure) onFailure(error);
+      });
+
+      this.client.on('offline', () => {
+        console.log('[MQTT] Offline');
+      });
+
+      this.client.on('reconnect', () => {
+        console.log('[MQTT] Reconectando...');
+      });
+
+    } catch (error) {
+      console.log('[MQTT] Erro ao conectar:', error);
+      if (onFailure) onFailure(error);
+    }
   }
 
   subscribe(topic) {
-    this.client.subscribe(topic);
+    if (this.client && this.client.connected) {
+      console.log('[MQTT] Subscrevendo em:', topic);
+      this.client.subscribe(topic, (err) => {
+        if (err) {
+          console.log('[MQTT] Erro ao subscrever:', topic, err);
+        } else {
+          console.log('[MQTT] Subscrito em:', topic);
+        }
+      });
+    } else {
+      console.log('[MQTT] Cliente não conectado');
+    }
   }
 
   publish(topic, message) {
-    const msg = new Paho.MQTT.Message(message);
-    msg.destinationName = topic;
-    this.client.send(msg);
+    if (this.client && this.client.connected) {
+      console.log('[MQTT] Publicando:', topic, message);
+      this.client.publish(topic, message, (err) => {
+        if (err) {
+          console.log('[MQTT] Erro ao publicar:', err);
+        }
+      });
+    } else {
+      console.log('[MQTT] Cliente não conectado, não foi possível publicar');
+    }
+  }
+
+  disconnect() {
+    if (this.client) {
+      this.client.end();
+      console.log('[MQTT] Desconectado');
+    }
   }
 }
