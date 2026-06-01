@@ -1,0 +1,1 @@
+LINK PARA O VÍDEO DE PERSISTÊNCIA DE DADOS: https://youtu.be/ywtvQJELSyk
